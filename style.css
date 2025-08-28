@@ -14,8 +14,8 @@ body {
     position: relative;
     width: 100%;
     height: 100%;
-    max-width: 450px; /* スマートフォンサイズを想定 */
-    max-height: 800px;
+    max-width: 600px;
+    max-height: 900px;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
     border-radius: 15px;
     overflow: hidden;
@@ -53,38 +53,35 @@ h1 {
     font-size: 2.5em;
     color: #ff69b4; /* ポップなピンク */
     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    margin-bottom: 20px;
 }
 
 button {
-    padding: 15px 30px;
     font-size: 1.2em;
+    padding: 10px 20px;
     border: none;
-    border-radius: 30px;
-    background-color: #4CAF50; /* 鮮やかな緑 */
+    border-radius: 25px;
+    background-color: #ff69b4;
     color: white;
     cursor: pointer;
-    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s, background-color 0.2s;
+    margin-top: 10px;
 }
 
 button:hover {
-    background-color: #45a049;
+    background-color: #ff4a9b;
     transform: translateY(-2px);
 }
 
 #lives-display {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: rgba(255, 255, 255, 0.7);
-    padding: 8px 15px;
-    border-radius: 20px;
-    font-weight: bold;
-    color: #d9534f; /* 赤 */
-    z-index: 5;
-}
-
-#game-time {
+    bottom: 15px;
+    left: 15px;
     font-size: 1.5em;
-    color: #3498db; /* 青 */
+    font-weight: bold;
+    color: #333;
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 5px 10px;
+    border-radius: 10px;
 }
