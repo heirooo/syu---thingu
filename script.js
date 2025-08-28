@@ -7,43 +7,43 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const gameTimeDisplay = document.getElementById('game-time');
 const livesCountDisplay = document.getElementById('lives-count');
 
-canvas.width = 450;
-canvas.height = 800;
+// キャンバスのサイズを広げる
+canvas.width = 600;
+canvas.height = 900;
 
 let gameRunning = false;
+let isShooting = false;
 let lastTime = 0;
 let deltaTime = 0;
 let gameStartTime = 0;
-let touchStartX = 0;
-let touchStartY = 0;
+let playerYPosition = canvas.height - 100; // プレイヤーのY座標を固定
 
 // キャラクター、弾、敵の画像
-// TODO: ここに用意した画像のパスを設定してください
 const playerImage = new Image();
 const playerBulletImage = new Image();
 const enemyImage = new Image();
 const enemyBulletImage = new Image();
 const obstacleImage = new Image();
 
-// 画像をロードする
-// playerImage.src = 'player.png';
-// playerBulletImage.src = 'playertama.png';
-// enemyImage.src = 'teki.png';
-// enemyBulletImage.src = 'tekitama.png';
-// obstacleImage.src = 'obj.png';
+// 効果音
+const enemyShotSound = new Audio('enemy-shot.wav');
+const obstacleBreakSound = new Audio('obstacle-break.wav');
+const enemyDeathSound = new Audio('enemy-death.wav');
 
 // ゲームオブジェクトクラス
 class GameObject {
-    constructor(x, y, width, height, image) {
+    constructor(x, y, width, height, image, dx = 0, dy = 0) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this.image = image;
+        this.dx = dx;
+        this.dy = dy;
     }
 
     draw() {
-        if (this.image) {
+        if (this.image && this.image.complete && this.image.naturalWidth > 0) {
             ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         } else {
             // 画像がない場合は四角形で代用
@@ -62,11 +62,11 @@ class GameObject {
 }
 
 // プレイヤー
-let player = new GameObject(canvas.width / 2 - 25, canvas.height - 100, 50, 50, playerImage);
+let player;
 let playerLives = 3;
 let isInvincible = false;
 let lastShotTime = 0;
-const fireRate = 1000 / 5; // 1秒に5発
+const fireRate = 1000 / 5;
 
 // 弾
 let playerBullets = [];
@@ -84,9 +84,10 @@ let obstacleSpawnInterval = 3000;
 
 // ゲームのリセット
 function resetGame() {
-    player = new GameObject(canvas.width / 2 - 25, canvas.height - 100, 50, 50, playerImage);
+    player = new GameObject(canvas.width / 2 - 25, playerYPosition, 50, 50, playerImage);
     playerLives = 3;
     isInvincible = false;
+    isShooting = false;
     playerBullets = [];
     enemyBullets = [];
     enemies = [];
@@ -99,14 +100,39 @@ function resetGame() {
     livesCountDisplay.textContent = `残機: ${playerLives}`;
 }
 
-// ゲーム開始
-function startGame() {
+// ゲーム開始ロジック
+function runGame() {
     resetGame();
     titleScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
-    gameRunning = false; // キャラクターを触るまでゲームを開始しない
+    gameRunning = true;
     gameStartTime = Date.now();
     requestAnimationFrame(gameLoop);
+}
+
+// 画像のロードとゲーム開始
+function startGame() {
+    let assetsLoaded = 0;
+    const totalAssets = 5;
+
+    const assetLoaded = () => {
+        assetsLoaded++;
+        if (assetsLoaded === totalAssets) {
+            runGame();
+        }
+    };
+
+    playerImage.onload = assetLoaded;
+    playerBulletImage.onload = assetLoaded;
+    enemyImage.onload = assetLoaded;
+    enemyBulletImage.onload = assetLoaded;
+    obstacleImage.onload = assetLoaded;
+
+    playerImage.src = 'player.png';
+    playerBulletImage.src = 'playertama.png';
+    enemyImage.src = 'teki.png';
+    enemyBulletImage.src = 'tekitama.png';
+    obstacleImage.src = 'obj.png';
 }
 
 // ゲームループ
@@ -116,32 +142,35 @@ function gameLoop(timestamp) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // ゲームが開始していない場合はプレイヤーのみ描画
     if (!gameRunning) {
-        player.draw();
+        if (player) {
+            player.draw();
+        }
         requestAnimationFrame(gameLoop);
         return;
     }
 
-    // 時間経過で出現頻度を上げる
     const timeElapsed = Date.now() - gameStartTime;
-    enemySpawnInterval = Math.max(1000, 5000 - timeElapsed * 0.005);
-    obstacleSpawnInterval = Math.max(1000, 3000 - timeElapsed * 0.003);
+    // 難易度上昇を早くする (乗数を増やす)
+    enemySpawnInterval = Math.max(1000, 5000 - timeElapsed * 0.01);
+    obstacleSpawnInterval = Math.max(1000, 3000 - timeElapsed * 0.006);
 
-    // オブジェクトの更新
     updatePlayer();
     updatePlayerBullets();
     updateEnemies();
     updateEnemyBullets();
     updateObstacles();
+    
+    // プレイヤーが射撃中の場合に弾を発射
+    if (isShooting && Date.now() - lastShotTime > fireRate) {
+        playerBullets.push(new GameObject(player.x + player.width / 2 - 2, player.y, 4, 15, playerBulletImage));
+        lastShotTime = Date.now();
+    }
 
-    // 描画
     drawObjects();
     
-    // 衝突判定
     checkCollisions();
 
-    // ゲームオーバー判定
     if (playerLives <= 0) {
         endGame();
         return;
@@ -151,7 +180,7 @@ function gameLoop(timestamp) {
 }
 
 function updatePlayer() {
-    // プレイヤーの動きはタッチイベントで処理
+    // プレイヤーの動きはタッチイベントとマウスイベントで処理
 }
 
 function updatePlayerBullets() {
@@ -162,26 +191,30 @@ function updatePlayerBullets() {
 function updateEnemies() {
     if (Date.now() - lastEnemySpawn > enemySpawnInterval && enemies.length < 3) {
         const x = Math.random() * (canvas.width - 50);
-        const y = -50;
-        enemies.push({
-            ...new GameObject(x, y, 50, 50, enemyImage),
-            health: 5,
-            lastShot: Date.now()
-        });
+        const y = 50;
+        const newEnemy = new GameObject(x, y, 50, 50, enemyImage);
+        newEnemy.health = 5;
+        newEnemy.lastShot = Date.now();
+        enemies.push(newEnemy);
         lastEnemySpawn = Date.now();
     }
-    enemies.forEach(enemy => enemy.y += 1);
-    
-    // 敵の弾発射
     enemies.forEach(enemy => {
         if (Date.now() - enemy.lastShot > 5000) {
-            const bulletSpeed = 3;
-            for (let i = -1; i <= 1; i++) { // 3方向に発射
-                enemyBullets.push(new GameObject(enemy.x + enemy.width / 2, enemy.y + enemy.height, 10, 10, enemyBulletImage));
-                enemyBullets[enemyBullets.length - 1].dx = i * 2;
-                enemyBullets[enemyBullets.length - 1].dy = bulletSpeed;
+            const bulletSpeed = 2;
+            const spreadAngle = Math.PI / 12;
+            const angleStep = spreadAngle / 2;
+
+            for (let i = -1; i <= 1; i++) {
+                const angle = Math.PI / 2 + i * angleStep;
+                const dx = Math.cos(angle) * bulletSpeed;
+                const dy = Math.sin(angle) * bulletSpeed;
+                const bulletWidth = 20;
+                const bulletHeight = 20;
+                const newEnemyBullet = new GameObject(enemy.x + enemy.width / 2 - bulletWidth / 2, enemy.y + enemy.height, bulletWidth, bulletHeight, enemyBulletImage, dx, dy);
+                enemyBullets.push(newEnemyBullet);
             }
             enemy.lastShot = Date.now();
+            enemyShotSound.play(); // 敵の弾発射時に効果音を再生
         }
     });
 
@@ -201,10 +234,9 @@ function updateObstacles() {
         const width = 50 + Math.random() * (canvas.width - 100);
         const x = Math.random() * (canvas.width - width);
         const y = -50;
-        obstacles.push({
-            ...new GameObject(x, y, width, 50, obstacleImage),
-            health: 3
-        });
+        const newObstacle = new GameObject(x, y, width, 50, obstacleImage);
+        newObstacle.health = 3;
+        obstacles.push(newObstacle);
         lastObstacleSpawn = Date.now();
     }
     obstacles.forEach(obstacle => obstacle.y += 1.5);
@@ -212,7 +244,7 @@ function updateObstacles() {
 }
 
 function drawObjects() {
-    player.draw();
+    if (player) player.draw();
     playerBullets.forEach(bullet => bullet.draw());
     enemies.forEach(enemy => enemy.draw());
     enemyBullets.forEach(bullet => bullet.draw());
@@ -220,7 +252,8 @@ function drawObjects() {
 }
 
 function checkCollisions() {
-    // プレイヤーと敵の弾
+    if (!player) return;
+
     if (!isInvincible) {
         enemyBullets.forEach((bullet, bIndex) => {
             if (player.isColliding(bullet)) {
@@ -230,7 +263,6 @@ function checkCollisions() {
         });
     }
 
-    // プレイヤーと障害物
     if (!isInvincible) {
         obstacles.forEach((obstacle) => {
             if (player.isColliding(obstacle)) {
@@ -239,7 +271,6 @@ function checkCollisions() {
         });
     }
 
-    // プレイヤーの弾と敵
     playerBullets.forEach((pBullet, pbIndex) => {
         enemies.forEach((enemy, eIndex) => {
             if (pBullet.isColliding(enemy)) {
@@ -247,12 +278,12 @@ function checkCollisions() {
                 playerBullets.splice(pbIndex, 1);
                 if (enemy.health <= 0) {
                     enemies.splice(eIndex, 1);
+                    enemyDeathSound.play(); // 敵が破壊されたら効果音を再生
                 }
             }
         });
     });
 
-    // プレイヤーの弾と障害物
     playerBullets.forEach((pBullet, pbIndex) => {
         obstacles.forEach((obstacle, oIndex) => {
             if (pBullet.isColliding(obstacle)) {
@@ -260,6 +291,7 @@ function checkCollisions() {
                 playerBullets.splice(pbIndex, 1);
                 if (obstacle.health <= 0) {
                     obstacles.splice(oIndex, 1);
+                    obstacleBreakSound.play(); // 障害物が破壊されたら効果音を再生
                 }
             }
         });
@@ -272,7 +304,7 @@ function takeDamage() {
     isInvincible = true;
     setTimeout(() => {
         isInvincible = false;
-    }, 1000); // 1秒間の無敵時間
+    }, 1000);
 }
 
 function endGame() {
@@ -291,34 +323,56 @@ returnButton.addEventListener('click', () => {
     titleScreen.classList.remove('hidden');
 });
 
+// マウスイベント
+canvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (!gameRunning) {
+        gameRunning = true;
+    }
+    isShooting = true;
+    
+    // マウスダウン時にプレイヤーの位置を更新
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    player.x = mouseX - player.width / 2;
+});
+canvas.addEventListener('mouseup', () => {
+    isShooting = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    e.preventDefault();
+    if (gameRunning) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        player.x = mouseX - player.width / 2;
+    }
+});
+
 // タッチイベント
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (!gameRunning) {
-        gameRunning = true; // ゲーム開始
+        gameRunning = true;
     }
+    isShooting = true;
+    
+    // タッチ開始時にプレイヤーの位置を更新
     const touch = e.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
+    const rect = canvas.getBoundingClientRect();
+    const touchX = touch.clientX - rect.left;
+    player.x = touchX - player.width / 2;
+});
+canvas.addEventListener('touchend', () => {
+    isShooting = false;
 });
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     if (gameRunning) {
         const touch = e.touches[0];
-        const dx = touch.clientX - touchStartX;
-        const dy = touch.clientY - touchStartY;
-        
-        player.x = Math.min(Math.max(0, player.x + dx), canvas.width - player.width);
-        player.y = Math.min(Math.max(0, player.y + dy), canvas.height - player.height);
-        
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-
-        // 押している間だけ弾を発射
-        if (Date.now() - lastShotTime > fireRate) {
-            playerBullets.push(new GameObject(player.x + player.width / 2 - 2, player.y, 4, 15, playerBulletImage));
-            lastShotTime = Date.now();
-        }
+        const rect = canvas.getBoundingClientRect();
+        const touchX = touch.clientX - rect.left;
+        player.x = touchX - player.width / 2;
     }
 });
