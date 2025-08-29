@@ -26,9 +26,9 @@ const enemyBulletImage = new Image();
 const obstacleImage = new Image();
 
 // 効果音
-const enemyShotSound = new Audio('enemy-shot.wav');
-const obstacleBreakSound = new Audio('obstacle-break.wav');
-const enemyDeathSound = new Audio('enemy-death.wav');
+const enemyShotSound = new Audio('ゲラ.mp3');
+const obstacleBreakSound = new Audio('bu.mp3');
+const enemyDeathSound = new Audio('mvp.mp3');
 
 // ゲームオブジェクトクラス
 class GameObject {
@@ -84,7 +84,7 @@ let obstacleSpawnInterval = 3000;
 
 // ゲームのリセット
 function resetGame() {
-    player = new GameObject(canvas.width / 2 - 25, playerYPosition, 50, 50, playerImage);
+    player = new GameObject(canvas.width / 2 - 35, playerYPosition, 70, 70, playerImage);
     playerLives = 3;
     isInvincible = false;
     isShooting = false;
@@ -155,15 +155,18 @@ function gameLoop(timestamp) {
     enemySpawnInterval = Math.max(1000, 5000 - timeElapsed * 0.01);
     obstacleSpawnInterval = Math.max(1000, 3000 - timeElapsed * 0.006);
 
+    // 敵の発射間隔をゲーム時間に合わせて短縮 (1分で1000ms -> 500ms)
+    const enemyFireInterval = Math.max(500, 1000 - (timeElapsed / 60000) * 500);
+
     updatePlayer();
     updatePlayerBullets();
-    updateEnemies();
+    updateEnemies(enemyFireInterval);
     updateEnemyBullets();
     updateObstacles();
     
     // プレイヤーが射撃中の場合に弾を発射
     if (isShooting && Date.now() - lastShotTime > fireRate) {
-        playerBullets.push(new GameObject(player.x + player.width / 2 - 2, player.y, 4, 15, playerBulletImage));
+        playerBullets.push(new GameObject(player.x + player.width / 2 - 3, player.y, 6, 20, playerBulletImage));
         lastShotTime = Date.now();
     }
 
@@ -188,32 +191,32 @@ function updatePlayerBullets() {
     playerBullets = playerBullets.filter(bullet => bullet.y > -bullet.height);
 }
 
-function updateEnemies() {
+function updateEnemies(enemyFireInterval) {
     if (Date.now() - lastEnemySpawn > enemySpawnInterval && enemies.length < 3) {
-        const x = Math.random() * (canvas.width - 50);
+        const x = Math.random() * (canvas.width - 70);
         const y = 50;
-        const newEnemy = new GameObject(x, y, 50, 50, enemyImage);
+        const newEnemy = new GameObject(x, y, 70, 70, enemyImage);
         newEnemy.health = 5;
         newEnemy.lastShot = Date.now();
         enemies.push(newEnemy);
         lastEnemySpawn = Date.now();
     }
     enemies.forEach(enemy => {
-        if (Date.now() - enemy.lastShot > 5000) {
+        if (Date.now() - enemy.lastShot > enemyFireInterval) {
             const bulletSpeed = 2;
-            const spreadAngle = Math.PI / 12;
+            const spreadAngle = Math.PI / 8; // 敵の弾の散らばりを大きく
             const angleStep = spreadAngle / 2;
 
             for (let i = -1; i <= 1; i++) {
                 const angle = Math.PI / 2 + i * angleStep;
                 const dx = Math.cos(angle) * bulletSpeed;
                 const dy = Math.sin(angle) * bulletSpeed;
-                const bulletWidth = 20;
-                const bulletHeight = 20;
+                const bulletWidth = 30;
+                const bulletHeight = 30;
                 const newEnemyBullet = new GameObject(enemy.x + enemy.width / 2 - bulletWidth / 2, enemy.y + enemy.height, bulletWidth, bulletHeight, enemyBulletImage, dx, dy);
                 enemyBullets.push(newEnemyBullet);
             }
-            enemy.lastShot = Date.now();
+            enemy.lastShot = Date.now(); // ここを修正しました
             enemyShotSound.play(); // 敵の弾発射時に効果音を再生
         }
     });
@@ -231,15 +234,16 @@ function updateEnemyBullets() {
 
 function updateObstacles() {
     if (Date.now() - lastObstacleSpawn > obstacleSpawnInterval) {
-        const width = 50 + Math.random() * (canvas.width - 100);
+        const width = 70 + Math.random() * (canvas.width - 140);
         const x = Math.random() * (canvas.width - width);
-        const y = -50;
-        const newObstacle = new GameObject(x, y, width, 50, obstacleImage);
+        const y = -70;
+        const newObstacle = new GameObject(x, y, width, 70, obstacleImage);
         newObstacle.health = 3;
         obstacles.push(newObstacle);
         lastObstacleSpawn = Date.now();
     }
-    obstacles.forEach(obstacle => obstacle.y += 1.5);
+    // 障害物のスピードをランダムに、そして速く
+    obstacles.forEach(obstacle => obstacle.y += 2.5 + Math.random() * 3.5);
     obstacles = obstacles.filter(obstacle => obstacle.y < canvas.height);
 }
 
