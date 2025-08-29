@@ -156,8 +156,7 @@ function gameLoop(timestamp) {
     obstacleSpawnInterval = Math.max(1000, 3000 - timeElapsed * 0.006);
 
     // 敵の発射間隔をゲーム時間に合わせて短縮 (1分で1000ms -> 500ms)
-    const enemyFireInterval = Math.max(500, 1000 - (timeElapsed / 60000) * 500);
-
+    const enemyFireInterval = Math.max(1000, 2000 - (timeElapsed / 60000) * 1000); // 修正
     updatePlayer();
     updatePlayerBullets();
     updateEnemies(enemyFireInterval);
@@ -187,7 +186,7 @@ function updatePlayer() {
 }
 
 function updatePlayerBullets() {
-    playerBullets.forEach(bullet => bullet.y -= 7);
+    playerBullets.forEach(bullet => bullet.y -= 14); // 修正
     playerBullets = playerBullets.filter(bullet => bullet.y > -bullet.height);
 }
 
@@ -203,7 +202,7 @@ function updateEnemies(enemyFireInterval) {
     }
     enemies.forEach(enemy => {
         if (Date.now() - enemy.lastShot > enemyFireInterval) {
-            const bulletSpeed = 2;
+            const bulletSpeed = 4; // 修正
             const spreadAngle = Math.PI / 8; // 敵の弾の散らばりを大きく
             const angleStep = spreadAngle / 2;
 
